@@ -176,9 +176,11 @@ export default function AudioProcessor() {
 
     if (loading) {
         return (
-            <div className="container" style={{ textAlign: 'center' }}>
-                <Loader2 className="icon" size={48} style={{ animation: 'spin 1s linear infinite' }} />
-                <p>Loading Audio Engine...</p>
+            <div className="container">
+                <div className="loading-box">
+                    <Loader2 className="icon spin-icon" size={48} />
+                    <p style={{ marginTop: '1rem', fontWeight: 500 }}>Initializing Audio Engine...</p>
+                </div>
             </div>
         );
     }
@@ -188,34 +190,29 @@ export default function AudioProcessor() {
             <h1>Audio Processor</h1>
 
             {!ready && (
-                <div style={{ color: '#ef4444', textAlign: 'center', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '1rem', borderRadius: '8px' }}>
-                    <AlertCircle className="icon" style={{ display: 'block', margin: '0 auto 0.5rem' }} />
-                    <p style={{ fontWeight: 600 }}>Engine failed to load</p>
-                    <p>{error || "Unknown error occurred"}</p>
+                <div className="alert-box">
+                    <AlertCircle size={32} style={{ margin: '0 auto 0.5rem', display: 'block' }} />
+                    <p style={{ fontWeight: 600, margin: '0 0 0.25rem 0' }}>Engine failed to load</p>
+                    <p style={{ fontSize: '0.9rem', margin: 0 }}>{error || "Unknown error occurred"}</p>
                 </div>
             )}
 
             {ready && (
                 <>
                     {/* Mode Toggles */}
-                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {/* Mode Toggles */}
+                    <div className="toggle-group">
                         <button
+                            className={`toggle-btn ${mode === 'audio' ? 'active' : ''}`}
                             onClick={() => { setMode('audio'); setResults([]); }}
                             title="Join multiple audio files into one, or split a large file into smaller chunks."
-                            style={{
-                                backgroundColor: mode === 'audio' ? '#3b82f6' : '#1e293b',
-                                opacity: mode === 'audio' ? 1 : 0.7
-                            }}
                         >
                             Audio Processing
                         </button>
                         <button
-                            onClick={() => { setMode('convert'); setResults([]); setFileToConvert(null); }}
+                            className={`toggle-btn ${mode === 'convert' ? 'active' : ''}`}
+                            onClick={() => { setMode('convert'); setResults([]); setFilesToConvert([]); }}
                             title="Convert video files or raw audio formats into standard MP3 files."
-                            style={{
-                                backgroundColor: mode === 'convert' ? '#3b82f6' : '#1e293b',
-                                opacity: mode === 'convert' ? 1 : 0.7
-                            }}
                         >
                             Convert to MP3
                         </button>
@@ -235,24 +232,22 @@ export default function AudioProcessor() {
                                     disabled={processing}
                                 />
                                 <Upload className="icon" size={48} />
-                                <p>{filesToConvert.length > 0 ? `${filesToConvert.length} files selected` : "Click to upload files to convert"}</p>
-                                <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.5rem' }}>
-                                    (Supports audio and video files)
-                                </p>
+                                <p>{filesToConvert.length > 0 ? `${filesToConvert.length} files selected` : "Drag & drop or click to upload files"}</p>
+                                <p className="subtitle">Supports audio and video formats for MP3 conversion</p>
                             </div>
 
                             {/* Convert File List */}
                             {filesToConvert.length > 0 && (
-                                <div className="file-list" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <div className="file-list">
                                     {filesToConvert.map((f, idx) => (
-                                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1e293b', padding: '0.5rem', borderRadius: '4px' }}>
-                                            <span style={{ fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
+                                        <div key={idx} className="file-item" style={{ animationDelay: `${idx * 0.05}s` }}>
+                                            <span className="file-name">
                                                 {idx + 1}. {f.name} ({(f.size / (1024 * 1024)).toFixed(2)} MB)
                                             </span>
-                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                <button onClick={() => moveFileToConvert(idx, 'up')} disabled={idx === 0} style={{ padding: '0.25rem', fontSize: '0.8rem' }}>↑</button>
-                                                <button onClick={() => moveFileToConvert(idx, 'down')} disabled={idx === filesToConvert.length - 1} style={{ padding: '0.25rem', fontSize: '0.8rem' }}>↓</button>
-                                                <button onClick={() => removeFileToConvert(idx)} style={{ padding: '0.25rem', fontSize: '0.8rem', backgroundColor: '#ef4444' }}>✕</button>
+                                            <div className="action-btn-group">
+                                                <button className="icon-btn" onClick={() => moveFileToConvert(idx, 'up')} disabled={idx === 0} title="Move Up"><ArrowUp size={16} /></button>
+                                                <button className="icon-btn" onClick={() => moveFileToConvert(idx, 'down')} disabled={idx === filesToConvert.length - 1} title="Move Down"><ArrowDown size={16} /></button>
+                                                <button className="icon-btn danger" onClick={() => removeFileToConvert(idx)} title="Remove"><Trash2 size={16} /></button>
                                             </div>
                                         </div>
                                     ))}
@@ -275,24 +270,22 @@ export default function AudioProcessor() {
                                     disabled={processing}
                                 />
                                 <Upload className="icon" size={48} />
-                                <p>Click to add audio files</p>
-                                <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.5rem' }}>
-                                    (Add multiple to join them, or one to split)
-                                </p>
+                                <p>Drag & drop or click to add audio files</p>
+                                <p className="subtitle">Add multiple to join them, or a single file to split it</p>
                             </div>
 
                             {/* Audio File List */}
                             {audioFiles.length > 0 && (
-                                <div className="file-list" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <div className="file-list">
                                     {audioFiles.map((f, idx) => (
-                                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1e293b', padding: '0.5rem', borderRadius: '4px' }}>
-                                            <span style={{ fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
+                                        <div key={idx} className="file-item" style={{ animationDelay: `${idx * 0.05}s` }}>
+                                            <span className="file-name">
                                                 {idx + 1}. {f.name} ({(f.size / (1024 * 1024)).toFixed(2)} MB)
                                             </span>
-                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                <button onClick={() => moveAudioFile(idx, 'up')} disabled={idx === 0} style={{ padding: '0.25rem', fontSize: '0.8rem' }}>↑</button>
-                                                <button onClick={() => moveAudioFile(idx, 'down')} disabled={idx === audioFiles.length - 1} style={{ padding: '0.25rem', fontSize: '0.8rem' }}>↓</button>
-                                                <button onClick={() => removeAudioFile(idx)} style={{ padding: '0.25rem', fontSize: '0.8rem', backgroundColor: '#ef4444' }}>✕</button>
+                                            <div className="action-btn-group">
+                                                <button className="icon-btn" onClick={() => moveAudioFile(idx, 'up')} disabled={idx === 0} title="Move Up"><ArrowUp size={16} /></button>
+                                                <button className="icon-btn" onClick={() => moveAudioFile(idx, 'down')} disabled={idx === audioFiles.length - 1} title="Move Down"><ArrowDown size={16} /></button>
+                                                <button className="icon-btn danger" onClick={() => removeAudioFile(idx)} title="Remove"><Trash2 size={16} /></button>
                                             </div>
                                         </div>
                                     ))}
@@ -301,20 +294,21 @@ export default function AudioProcessor() {
 
                             {/* Split Settings */}
                             {audioFiles.length > 0 && (
-                                <div style={{ marginTop: '1.5rem', padding: '1rem', backgroundColor: '#1e293b', borderRadius: '8px' }}>
-                                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Split Segment Time (seconds)</label>
+                                <div className="settings-panel">
+                                    <label>Split Segment Time (seconds)</label>
                                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                                         <input
                                             type="number"
                                             value={segmentTime}
                                             onChange={(e) => setSegmentTime(Number(e.target.value))}
-                                            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #475569', backgroundColor: '#0f172a', color: 'white' }}
+                                            min="10"
+                                            step="10"
                                         />
-                                        <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
-                                            (~{(segmentTime / 60).toFixed(1)} minutes)
+                                        <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)' }}>
+                                            ≈ {(segmentTime / 60).toFixed(1)} minutes per chunk
                                         </span>
                                     </div>
-                                    <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.5rem' }}>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.75rem', marginBottom: 0 }}>
                                         Recommended: 2700s (45 mins) - 3000s (50 mins) for Riverside optimization.
                                     </p>
                                 </div>
@@ -324,18 +318,19 @@ export default function AudioProcessor() {
 
                     {/* Common Process Button */}
                     <button
+                        className="process-btn"
                         onClick={processAudio}
                         disabled={
                             (mode === 'audio' && audioFiles.length === 0) ||
                             (mode === 'convert' && filesToConvert.length === 0) ||
                             processing
                         }
-                        style={{ marginTop: '1.5rem' }}
                     >
                         {processing ? (
-                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                                <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> Processing...
-                            </span>
+                            <>
+                                <Loader2 className="spin-icon" size={20} />
+                                <span>Processing...</span>
+                            </>
                         ) : (
                             mode === 'convert' ? "Convert All to MP3" :
                                 (audioFiles.length > 1 ? "Join & Split Audio" : "Split Audio")
@@ -344,44 +339,47 @@ export default function AudioProcessor() {
 
                     {/* Progress Bar */}
                     {processing && (
-                        <div className="progress-bar">
-                            <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+                        <div className="progress-container">
+                            <div className="progress-header">
+                                <span>Processing Audio...</span>
+                                <span>{progress}%</span>
+                            </div>
+                            <div className="progress-bar">
+                                <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+                            </div>
                         </div>
                     )}
 
                     {/* Results */}
                     {results.length > 0 && (
-                        <div className="segment-list">
-                            <h3>Results</h3>
-                            {results.map((seg, idx) => {
-                                const isText = seg.name.endsWith('.txt') || seg.name.endsWith('.srt') || seg.name.endsWith('.vtt') || seg.name.endsWith('.md');
-                                return (
-                                    <div key={idx} className="segment-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '1rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                {isText ? <FileText size={18} /> : <FileAudio size={18} />} {seg.name}
-                                            </span>
-                                            <a
-                                                href={URL.createObjectURL(seg.data)}
-                                                download={seg.name}
-                                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: '#6366f1' }}
-                                            >
-                                                <Download size={18} /> Download
-                                            </a>
-                                        </div>
-                                        {!isText && (
-                                            <audio controls src={URL.createObjectURL(seg.data)} style={{ width: '100%' }} />
-                                        )}
-                                        {isText && (
-                                            <div style={{ padding: '1rem', backgroundColor: '#0f172a', borderRadius: '4px', fontSize: '0.9rem', color: '#94a3b8', fontStyle: 'italic', whiteSpace: 'pre-wrap', maxHeight: '300px', overflowY: 'auto' }}>
-                                                {/* Preview content if available (for MD files, we might want to just show download) */}
-                                                Text file ready for download.
+                        <>
+                            <div className="results-header">
+                                <CheckCircle size={28} className="icon" style={{ margin: 0 }} />
+                                Processing Complete
+                            </div>
+                            <div className="segment-list">
+                                {results.map((seg, idx) => {
+                                    return (
+                                        <div key={idx} className="result-card" style={{ animationDelay: `${idx * 0.1}s` }}>
+                                            <div className="result-header">
+                                                <div className="result-title">
+                                                    <FileAudio size={20} color="var(--primary-color)" />
+                                                    <span>{seg.name}</span>
+                                                </div>
+                                                <a
+                                                    href={URL.createObjectURL(seg.data)}
+                                                    download={seg.name}
+                                                    className="download-link"
+                                                >
+                                                    <Download size={18} /> Download
+                                                </a>
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                            <audio controls src={URL.createObjectURL(seg.data)} />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
                     )}
 
                     <div className="log-area">
