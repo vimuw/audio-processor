@@ -15,14 +15,15 @@ export class FFmpegHelper {
         }
 
         try {
+            const basePath = import.meta.env.BASE_URL || '/';
             if (onLog) onLog("Loading ffmpeg-core.js...");
-            const coreURL = await toBlobURL(`/ffmpeg/ffmpeg-core.js`, 'text/javascript');
+            const coreURL = await toBlobURL(`${basePath}ffmpeg/ffmpeg-core.js`, 'text/javascript');
 
             if (onLog) onLog("Loading ffmpeg-core.wasm...");
-            const wasmURL = await toBlobURL(`/ffmpeg/ffmpeg-core.wasm`, 'application/wasm');
+            const wasmURL = await toBlobURL(`${basePath}ffmpeg/ffmpeg-core.wasm`, 'application/wasm');
 
             if (onLog) onLog("Loading ffmpeg-core.worker.js...");
-            const workerURL = await toBlobURL(`/ffmpeg/ffmpeg-core.worker.js`, 'text/javascript');
+            const workerURL = await toBlobURL(`${basePath}ffmpeg/ffmpeg-core.worker.js`, 'text/javascript');
 
             if (onLog) onLog("Initializing FFmpeg...");
             await this.ffmpeg.load({

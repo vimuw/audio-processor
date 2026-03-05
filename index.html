@@ -9,7 +9,8 @@
   <script>
     if (!window.crossOriginIsolated) {
       const script = document.createElement('script');
-      script.src = "/coi-serviceworker.js";
+      // Use relative path for GitHub Pages compatibility
+      script.src = "coi-serviceworker.js";
       document.head.appendChild(script);
     }
   </script>
