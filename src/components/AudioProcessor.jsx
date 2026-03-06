@@ -124,8 +124,9 @@ export default function AudioProcessor() {
 
                     const output = await ffmpegHelper.convertToMp3(file, ({ progress }) => {
                         // Calculate overall progress: (completed files + current file progress) / total files
-                        const overallProgress = ((i + progress) / totalFiles) * 100;
-                        setProgress(Math.round(overallProgress));
+                        const p = Math.min(1, Math.max(0, Number(progress) || 0));
+                        const overallProgress = ((i + p) / totalFiles) * 100;
+                        setProgress(Math.min(99, Math.round(overallProgress)));
                     });
 
                     newResults.push(...output);
@@ -142,7 +143,8 @@ export default function AudioProcessor() {
                 }
                 setLogs(prev => [...prev, "Joining audio files..."]);
                 const joined = await ffmpegHelper.joinAudios(audioFiles, ({ progress }) => {
-                    setProgress(Math.round(progress * 100));
+                    const p = Math.min(1, Math.max(0, Number(progress) || 0));
+                    setProgress(Math.min(99, Math.round(p * 100)));
                 });
 
                 setResults(joined);
@@ -156,7 +158,8 @@ export default function AudioProcessor() {
                 if (audioFiles.length > 1) {
                     setLogs(prev => [...prev, "Joining audio files..."]);
                     const joined = await ffmpegHelper.joinAudios(audioFiles, ({ progress }) => {
-                        setProgress(Math.round(progress * 50)); // First 50% for joining
+                        const p = Math.min(1, Math.max(0, Number(progress) || 0));
+                        setProgress(Math.min(50, Math.round(p * 50))); // First 50% for joining
                     });
 
                     // The result of joinAudios is [{name, data}]
@@ -165,6 +168,7 @@ export default function AudioProcessor() {
                     fileToSplit = new File([blob], "joined_audio.mp3", { type: "audio/mp3" });
 
                     setLogs(prev => [...prev, "Join complete. Starting split..."]);
+                    setProgress(50);
                 } else {
                     fileToSplit = audioFiles[0];
                 }
@@ -172,12 +176,14 @@ export default function AudioProcessor() {
                 // 2. Split
                 const output = await ffmpegHelper.convertAndSplit(fileToSplit, segmentTime, ({ progress }) => {
                     // If we joined, map 0-1 to 50-100. If single, map 0-1 to 0-100.
+                    const p = Math.min(1, Math.max(0, Number(progress) || 0));
                     const base = audioFiles.length > 1 ? 50 : 0;
                     const scale = audioFiles.length > 1 ? 0.5 : 1;
-                    setProgress(base + Math.round(progress * 100 * scale));
+                    setProgress(Math.min(99, base + Math.round(p * 100 * scale)));
                 });
 
                 setResults(output);
+                setProgress(100);
 
             }
         } catch (err) {
