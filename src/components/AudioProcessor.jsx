@@ -104,7 +104,7 @@ export default function AudioProcessor() {
     // --- Processing ---
 
     const processAudio = async () => {
-        if (mode === 'audio' && audioFiles.length === 0) return;
+        if ((mode === 'audio' || mode === 'join') && audioFiles.length === 0) return;
         if (mode === 'convert' && filesToConvert.length === 0) return;
 
         setProcessing(true);
@@ -132,6 +132,21 @@ export default function AudioProcessor() {
                 }
                 setResults(newResults);
                 setLogs(prev => [...prev, "All files converted successfully."]);
+                setProgress(100);
+
+            } else if (mode === 'join') {
+                if (audioFiles.length < 2) {
+                    setError("Please add at least 2 audio files to join.");
+                    setProcessing(false);
+                    return;
+                }
+                setLogs(prev => [...prev, "Joining audio files..."]);
+                const joined = await ffmpegHelper.joinAudios(audioFiles, ({ progress }) => {
+                    setProgress(Math.round(progress * 100));
+                });
+
+                setResults(joined);
+                setLogs(prev => [...prev, "Audio files joined successfully."]);
                 setProgress(100);
 
             } else if (mode === 'audio') {
@@ -205,9 +220,16 @@ export default function AudioProcessor() {
                         <button
                             className={`toggle-btn ${mode === 'audio' ? 'active' : ''}`}
                             onClick={() => { setMode('audio'); setResults([]); }}
-                            title="Join multiple audio files into one, or split a large file into smaller chunks."
+                            title="Split a large file into smaller chunks."
                         >
-                            Audio Processing
+                            Split Audio
+                        </button>
+                        <button
+                            className={`toggle-btn ${mode === 'join' ? 'active' : ''}`}
+                            onClick={() => { setMode('join'); setResults([]); }}
+                            title="Join multiple audio files into a single file."
+                        >
+                            Join Audio
                         </button>
                         <button
                             className={`toggle-btn ${mode === 'convert' ? 'active' : ''}`}
@@ -256,8 +278,8 @@ export default function AudioProcessor() {
                         </>
                     )}
 
-                    {/* Audio Mode UI */}
-                    {mode === 'audio' && (
+                    {/* Audio & Join Mode UI */}
+                    {(mode === 'audio' || mode === 'join') && (
                         <>
                             <div className="upload-area" onClick={() => document.getElementById('file-upload').click()}>
                                 <input
@@ -270,8 +292,8 @@ export default function AudioProcessor() {
                                     disabled={processing}
                                 />
                                 <Upload className="icon" size={48} />
-                                <p>Drag & drop or click to add audio files</p>
-                                <p className="subtitle">Add multiple to join them, or a single file to split it</p>
+                                <p>{mode === 'join' ? 'Drag & drop or click to add files to join' : 'Drag & drop or click to add audio files'}</p>
+                                <p className="subtitle">{mode === 'join' ? 'Files will be merged in the order shown below' : 'Add a large file to split it, or multiple to join then split'}</p>
                             </div>
 
                             {/* Audio File List */}
@@ -293,7 +315,7 @@ export default function AudioProcessor() {
                             )}
 
                             {/* Split Settings */}
-                            {audioFiles.length > 0 && (
+                            {mode === 'audio' && audioFiles.length > 0 && (
                                 <div className="settings-panel">
                                     <label>Split Segment Time (seconds)</label>
                                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -321,7 +343,7 @@ export default function AudioProcessor() {
                         className="process-btn"
                         onClick={processAudio}
                         disabled={
-                            (mode === 'audio' && audioFiles.length === 0) ||
+                            ((mode === 'audio' || mode === 'join') && audioFiles.length === 0) ||
                             (mode === 'convert' && filesToConvert.length === 0) ||
                             processing
                         }
@@ -333,7 +355,8 @@ export default function AudioProcessor() {
                             </>
                         ) : (
                             mode === 'convert' ? "Convert All to MP3" :
-                                (audioFiles.length > 1 ? "Join & Split Audio" : "Split Audio")
+                                (mode === 'join' ? "Join Files Together" :
+                                    (audioFiles.length > 1 ? "Join & Split Audio" : "Split Audio"))
                         )}
                     </button>
 
