@@ -101,6 +101,7 @@ h1 {
   font-weight: 700;
   background: linear-gradient(135deg, #c7d2fe, var(--primary-color), var(--secondary-color));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin: 0 0 1.5rem 0;
   text-align: center;
@@ -161,6 +162,13 @@ h1 {
   background: linear-gradient(180deg, rgba(129, 140, 248, 0.08) 0%, rgba(255, 255, 255, 0) 100%);
   transform: translateY(-2px);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+.upload-area.drag-over {
+  border-color: var(--primary-color);
+  background: linear-gradient(180deg, rgba(129, 140, 248, 0.14) 0%, rgba(129, 140, 248, 0.04) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2), 0 0 0 3px var(--primary-glow);
 }
 
 .upload-area .icon {
@@ -434,6 +442,40 @@ audio {
   height: 40px;
   border-radius: 8px;
   outline: none;
+}
+
+/* Warning Box */
+.warning-box {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* Download All Button */
+.download-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
+  color: var(--text-color);
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Inter', sans-serif;
+}
+
+.download-all-btn:hover {
+  background: var(--primary-color);
+  border-color: transparent;
 }
 
 /* State Messages */

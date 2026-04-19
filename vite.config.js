@@ -14,4 +14,15 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ["@ffmpeg/ffmpeg", "@ffmpeg/util"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          lucide: ['lucide-react'],
+          gemini: ['@google/generative-ai'],
+        },
+      },
+    },
+  },
 });

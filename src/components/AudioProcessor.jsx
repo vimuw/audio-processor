@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { ffmpegHelper } from '../utils/ffmpegHelper';
 import { Upload, FileAudio, FileText, CheckCircle, AlertCircle, Loader2, Download, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 
@@ -13,8 +13,9 @@ export default function AudioProcessor() {
     // Audio State
     const [audioFiles, setAudioFiles] = useState([]);
     const [filesToConvert, setFilesToConvert] = useState([]); // For convert mode (batch)
-    const [segmentTime, setSegmentTime] = useState(2500); // Default ~45 mins (safe for Riverside)
-    const [totalDuration, setTotalDuration] = useState(null);
+    const [segmentMinutes, setSegmentMinutes] = useState(45);
+    const [fileDurations, setFileDurations] = useState(new Map());
+    const [isDraggingOver, setIsDraggingOver] = useState(false);
 
     // Shared State
     const [logs, setLogs] = useState([]);
@@ -23,6 +24,30 @@ export default function AudioProcessor() {
     const [error, setError] = useState(null);
 
     const logsEndRef = useRef(null);
+
+    const formatDuration = (sec) => {
+        if (sec == null || !isFinite(sec)) return null;
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = Math.floor(sec % 60);
+        if (h > 0) return `${h}h ${m}m`;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
+    };
+
+    const totalKnownDuration = useMemo(() => {
+        let total = 0;
+        audioFiles.forEach(f => { const d = fileDurations.get(f); if (d) total += d; });
+        return total;
+    }, [audioFiles, fileDurations]);
+
+    const [resultObjectUrls, setResultObjectUrls] = useState([]);
+
+    useEffect(() => {
+        const urls = results.map(seg => URL.createObjectURL(seg.data));
+        setResultObjectUrls(urls);
+        return () => urls.forEach(url => URL.revokeObjectURL(url));
+    }, [results]);
 
     useEffect(() => {
         const load = async () => {
@@ -48,30 +73,54 @@ export default function AudioProcessor() {
 
     // --- Audio Handlers ---
 
-    const handleAudioFileChange = (e) => {
-        if (!e.target.files || e.target.files.length === 0) return;
+    const loadFileDuration = useCallback((file) => {
+        const url = URL.createObjectURL(file);
+        const audio = new Audio(url);
+        audio.onloadedmetadata = () => {
+            URL.revokeObjectURL(url);
+            setFileDurations(prev => { const next = new Map(prev); next.set(file, audio.duration); return next; });
+        };
+        audio.onerror = () => URL.revokeObjectURL(url);
+    }, []);
 
-        const newFiles = Array.from(e.target.files);
+    const addFiles = useCallback((newFiles, targetMode) => {
         setResults([]);
         setProgress(0);
         setError(null);
         setLogs([]);
-
-        if (mode === 'convert') {
+        newFiles.forEach(loadFileDuration);
+        if (targetMode === 'convert') {
             setFilesToConvert(prev => [...prev, ...newFiles]);
         } else {
-            // Audio mode
             setAudioFiles(prev => [...prev, ...newFiles]);
-            // If it's the first file, calculate generic duration for suggestion
-            if (audioFiles.length === 0 && newFiles.length === 1) {
-                const audio = new Audio(URL.createObjectURL(newFiles[0]));
-                audio.onloadedmetadata = () => {
-                    setTotalDuration(audio.duration);
-                    URL.revokeObjectURL(audio.src);
-                };
-            }
         }
-    };
+    }, [loadFileDuration]);
+
+    const handleAudioFileChange = useCallback((e) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        addFiles(Array.from(e.target.files), mode);
+    }, [addFiles, mode]);
+
+    const handleDragOver = useCallback((e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(true);
+    }, []);
+
+    const handleDragLeave = useCallback((e) => {
+        if (e.currentTarget.contains(e.relatedTarget)) return;
+        e.preventDefault();
+        setIsDraggingOver(false);
+    }, []);
+
+    const handleDrop = useCallback((e, targetMode) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+        if (processing) return;
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        if (droppedFiles.length > 0) addFiles(droppedFiles, targetMode);
+    }, [addFiles, processing]);
 
     const moveAudioFile = (index, direction) => {
         const newFiles = [...audioFiles];
@@ -84,7 +133,9 @@ export default function AudioProcessor() {
     };
 
     const removeAudioFile = (index) => {
+        const file = audioFiles[index];
         setAudioFiles(audioFiles.filter((_, i) => i !== index));
+        setFileDurations(prev => { const next = new Map(prev); next.delete(file); return next; });
     };
 
     const moveFileToConvert = (index, direction) => {
@@ -98,7 +149,9 @@ export default function AudioProcessor() {
     };
 
     const removeFileToConvert = (index) => {
+        const file = filesToConvert[index];
         setFilesToConvert(filesToConvert.filter((_, i) => i !== index));
+        setFileDurations(prev => { const next = new Map(prev); next.delete(file); return next; });
     };
 
     // --- Processing ---
@@ -174,7 +227,7 @@ export default function AudioProcessor() {
                 }
 
                 // 2. Split
-                const output = await ffmpegHelper.convertAndSplit(fileToSplit, segmentTime, ({ progress }) => {
+                const output = await ffmpegHelper.convertAndSplit(fileToSplit, segmentMinutes * 60, ({ progress }) => {
                     // If we joined, map 0-1 to 50-100. If single, map 0-1 to 0-100.
                     const p = Math.min(1, Math.max(0, Number(progress) || 0));
                     const base = audioFiles.length > 1 ? 50 : 0;
@@ -194,6 +247,21 @@ export default function AudioProcessor() {
             setProcessing(false);
         }
     };
+
+    const handleDownloadAll = useCallback(() => {
+        results.forEach((seg, idx) => {
+            setTimeout(() => {
+                const url = URL.createObjectURL(seg.data);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = seg.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, idx * 300);
+        });
+    }, [results]);
 
     if (loading) {
         return (
@@ -226,21 +294,21 @@ export default function AudioProcessor() {
                         <button
                             className={`toggle-btn ${mode === 'audio' ? 'active' : ''}`}
                             onClick={() => { setMode('audio'); setResults([]); }}
-                            title="Split a large file into smaller chunks."
+                            title="Join multiple lesson segments and split into equal chunks."
                         >
                             Split Audio
                         </button>
                         <button
                             className={`toggle-btn ${mode === 'join' ? 'active' : ''}`}
                             onClick={() => { setMode('join'); setResults([]); }}
-                            title="Join multiple audio files into a single file."
+                            title="Combine 2–3 lesson segments into a single MP3 — perfect for El Sbobinator."
                         >
                             Join Audio
                         </button>
                         <button
                             className={`toggle-btn ${mode === 'convert' ? 'active' : ''}`}
                             onClick={() => { setMode('convert'); setResults([]); setFilesToConvert([]); }}
-                            title="Convert video files or raw audio formats into standard MP3 files."
+                            title="Convert iPhone/Android formats (m4a, mp4, ogg) to standard MP3."
                         >
                             Convert to MP3
                         </button>
@@ -249,7 +317,13 @@ export default function AudioProcessor() {
                     {/* Convert Mode UI */}
                     {mode === 'convert' && (
                         <>
-                            <div className="upload-area" onClick={() => document.getElementById('convert-upload').click()}>
+                            <div
+                                className={`upload-area${isDraggingOver ? ' drag-over' : ''}`}
+                                onClick={() => document.getElementById('convert-upload').click()}
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => handleDrop(e, 'convert')}
+                            >
                                 <input
                                     type="file"
                                     id="convert-upload"
@@ -270,7 +344,7 @@ export default function AudioProcessor() {
                                     {filesToConvert.map((f, idx) => (
                                         <div key={idx} className="file-item" style={{ animationDelay: `${idx * 0.05}s` }}>
                                             <span className="file-name">
-                                                {idx + 1}. {f.name} ({(f.size / (1024 * 1024)).toFixed(2)} MB)
+                                                {idx + 1}. {f.name} ({(f.size / (1024 * 1024)).toFixed(2)} MB{fileDurations.get(f) ? ` · ${formatDuration(fileDurations.get(f))}` : ''})
                                             </span>
                                             <div className="action-btn-group">
                                                 <button className="icon-btn" onClick={() => moveFileToConvert(idx, 'up')} disabled={idx === 0} title="Move Up"><ArrowUp size={16} /></button>
@@ -287,11 +361,17 @@ export default function AudioProcessor() {
                     {/* Audio & Join Mode UI */}
                     {(mode === 'audio' || mode === 'join') && (
                         <>
-                            <div className="upload-area" onClick={() => document.getElementById('file-upload').click()}>
+                            <div
+                                className={`upload-area${isDraggingOver ? ' drag-over' : ''}`}
+                                onClick={() => document.getElementById('file-upload').click()}
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => handleDrop(e, mode)}
+                            >
                                 <input
                                     type="file"
                                     id="file-upload"
-                                    accept="audio/*"
+                                    accept="audio/*,video/*"
                                     multiple
                                     style={{ display: 'none' }}
                                     onChange={handleAudioFileChange}
@@ -299,7 +379,7 @@ export default function AudioProcessor() {
                                 />
                                 <Upload className="icon" size={48} />
                                 <p>{mode === 'join' ? 'Drag & drop or click to add files to join' : 'Drag & drop or click to add audio files'}</p>
-                                <p className="subtitle">{mode === 'join' ? 'Files will be merged in the order shown below' : 'Add a large file to split it, or multiple to join then split'}</p>
+                                <p className="subtitle">{mode === 'join' ? 'Drop your lesson segments here — output is a single MP3' : 'Supports audio and video formats (m4a, mp4, mp3, etc.)'}</p>
                             </div>
 
                             {/* Audio File List */}
@@ -308,7 +388,7 @@ export default function AudioProcessor() {
                                     {audioFiles.map((f, idx) => (
                                         <div key={idx} className="file-item" style={{ animationDelay: `${idx * 0.05}s` }}>
                                             <span className="file-name">
-                                                {idx + 1}. {f.name} ({(f.size / (1024 * 1024)).toFixed(2)} MB)
+                                                {idx + 1}. {f.name} ({(f.size / (1024 * 1024)).toFixed(2)} MB{fileDurations.get(f) ? ` · ${formatDuration(fileDurations.get(f))}` : ''})
                                             </span>
                                             <div className="action-btn-group">
                                                 <button className="icon-btn" onClick={() => moveAudioFile(idx, 'up')} disabled={idx === 0} title="Move Up"><ArrowUp size={16} /></button>
@@ -323,25 +403,33 @@ export default function AudioProcessor() {
                             {/* Split Settings */}
                             {mode === 'audio' && audioFiles.length > 0 && (
                                 <div className="settings-panel">
-                                    <label>Split Segment Time (seconds)</label>
+                                    <label>Segment Length (minutes)</label>
                                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                                         <input
                                             type="number"
-                                            value={segmentTime}
-                                            onChange={(e) => setSegmentTime(Number(e.target.value))}
-                                            min="10"
-                                            step="10"
+                                            value={segmentMinutes}
+                                            onChange={(e) => setSegmentMinutes(Number(e.target.value))}
+                                            min="1"
+                                            step="5"
                                         />
                                         <span style={{ fontSize: '0.95rem', color: 'var(--text-muted)' }}>
-                                            ≈ {(segmentTime / 60).toFixed(1)} minutes per chunk
+                                            minutes per chunk
                                         </span>
                                     </div>
-                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.75rem', marginBottom: 0 }}>
-                                        Recommended: 2700s (45 mins) - 3000s (50 mins) for Riverside optimization.
-                                    </p>
+                                    {totalKnownDuration > 0 && (
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.75rem', marginBottom: 0 }}>
+                                            Total: {formatDuration(totalKnownDuration)} → ~{Math.ceil(totalKnownDuration / (segmentMinutes * 60))} chunk{Math.ceil(totalKnownDuration / (segmentMinutes * 60)) !== 1 ? 's' : ''}
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </>
+                    )}
+
+                    {(mode === 'audio' || mode === 'join') && totalKnownDuration > 90 * 60 && audioFiles.length > 0 && (
+                        <div className="warning-box">
+                            <strong>Large file detected</strong> — {formatDuration(totalKnownDuration)} total. In-browser processing may take a few minutes. Keep this tab active.
+                        </div>
                     )}
 
                     {/* Common Process Button */}
@@ -385,10 +473,14 @@ export default function AudioProcessor() {
                             <div className="results-header">
                                 <CheckCircle size={28} className="icon" style={{ margin: 0 }} />
                                 Processing Complete
+                                {results.length > 1 && (
+                                    <button className="download-all-btn" onClick={handleDownloadAll}>
+                                        <Download size={16} /> Download All ({results.length})
+                                    </button>
+                                )}
                             </div>
                             <div className="segment-list">
-                                {results.map((seg, idx) => {
-                                    return (
+                                {results.map((seg, idx) => (
                                         <div key={idx} className="result-card" style={{ animationDelay: `${idx * 0.1}s` }}>
                                             <div className="result-header">
                                                 <div className="result-title">
@@ -396,17 +488,16 @@ export default function AudioProcessor() {
                                                     <span>{seg.name}</span>
                                                 </div>
                                                 <a
-                                                    href={URL.createObjectURL(seg.data)}
+                                                    href={resultObjectUrls[idx]}
                                                     download={seg.name}
                                                     className="download-link"
                                                 >
                                                     <Download size={18} /> Download
                                                 </a>
                                             </div>
-                                            <audio controls src={URL.createObjectURL(seg.data)} />
+                                            <audio controls src={resultObjectUrls[idx]} />
                                         </div>
-                                    );
-                                })}
+                                    ))}
                             </div>
                         </>
                     )}
